@@ -1,0 +1,3 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+:root { --bg:#0b0f14; --surface:#121921; --surface-2:#1a232d; --border:#263241; --text:#e6ebf1; --muted:#8b98a8; --silver:#c9d1d9; --ok:#3fb68b; --warn:#e0a83a; --danger:#e5534b; }
+body { @apply bg-bg text-text font-sans; margin:0; }
