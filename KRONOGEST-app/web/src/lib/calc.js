@@ -24,3 +24,75 @@ export function planejamentoReverso(dataFinal, etapas) {
   }
   return out;
 }
+
+export const mesCurto = (ym) => `${ym.slice(5, 7)}/${ym.slice(2, 4)}`;
+
+export function listarMeses(ini, fim) {
+  const out = [];
+  let [y, m] = ini.slice(0, 7).split('-').map(Number);
+  const [y2, m2] = fim.slice(0, 7).split('-').map(Number);
+  while ((y < y2 || (y === y2 && m <= m2)) && out.length < 240) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`);
+    m += 1; if (m > 12) { m = 1; y += 1; }
+  }
+  return out;
+}
+
+// Usa só o acumulado mais recente de cada descrição (o item já guarda o acumulado)
+export function ultimosItens(itens, meds) {
+  const porDesc = {};
+  for (const i of itens) {
+    const n = meds.find((m) => m.id === i.medicao_id)?.numero ?? 0;
+    if (!porDesc[i.descricao] || n >= porDesc[i.descricao].n) porDesc[i.descricao] = { n, i };
+  }
+  return Object.values(porDesc).map((x) => x.i);
+}
+export const valorAcumulado = (itens) => round2(itens.reduce((s, i) => s + Number(i.quantidade_acumulada) * Number(i.preco_unitario), 0));
+
+export function fluxoMensal(lancs) {
+  const map = {};
+  for (const l of lancs) {
+    const ref = l.pagamento || l.vencimento;
+    if (!ref) continue;
+    const mes = ref.slice(0, 7);
+    map[mes] ||= { mes, receitas: 0, despesas: 0 };
+    map[mes][l.tipo === 'receita' ? 'receitas' : 'despesas'] += Number(l.valor);
+  }
+  return Object.values(map).sort((a, b) => a.mes.localeCompare(b.mes));
+}
+
+// Curva S: previsto (curva suave ao longo do prazo) x realizado (medido acumulado por mês)
+export function curvaS(obra, medicoes, itens, hoje = new Date()) {
+  const total = Number(obra.orcamento_total);
+  if (!obra.data_inicio || !obra.data_prevista_fim || !total) return [];
+  const meses = listarMeses(obra.data_inicio, obra.data_prevista_fim);
+  const porMes = {};
+  for (const m of medicoes) {
+    const mes = (m.periodo_fim || m.periodo_inicio || '').slice(0, 7);
+    if (!mes) continue;
+    porMes[mes] = (porMes[mes] || 0) + itens.filter((i) => i.medicao_id === m.id).reduce((s, i) => s + valorMedido(i), 0);
+  }
+  const atual = dia(hoje).slice(0, 7);
+  let acum = 0;
+  return meses.map((mes, idx) => {
+    const t = (idx + 1) / meses.length;
+    acum += porMes[mes] || 0;
+    return { mes, previsto: round2(total * (3 * t * t - 2 * t * t * t)), realizado: mes <= atual ? round2(acum) : null };
+  });
+}
+
+export function alertas({ lancs = [], etapas = [], meds = [], pedidos = [], hoje = new Date() }) {
+  const h = dia(hoje), lim = dia(new Date(hoje.getTime() + 7 * 864e5)), out = [];
+  for (const l of lancs) {
+    if (l.tipo !== 'despesa' || l.pagamento || !l.vencimento) continue;
+    if (l.vencimento < h) out.push({ nivel: 'danger', texto: `Conta vencida: ${l.descricao}`, ref: 'financeiro' });
+    else if (l.vencimento <= lim) out.push({ nivel: 'warn', texto: `Vence em até 7 dias: ${l.descricao}`, ref: 'financeiro' });
+  }
+  for (const e of etapas) {
+    const d = desvioEtapa(e, hoje);
+    if (e.percentual < 100 && d > 0) out.push({ nivel: 'danger', texto: `Etapa atrasada ${d} dias: ${e.nome}`, ref: 'cronograma' });
+  }
+  for (const m of meds) if (m.status === 'enviada') out.push({ nivel: 'warn', texto: `Medição ${m.numero} aguardando aprovação`, ref: 'medicoes' });
+  for (const p of pedidos) if (p.status === 'aberto' && p.prazo_entrega && p.prazo_entrega < h) out.push({ nivel: 'danger', texto: `Entrega atrasada: ${p.descricao || 'pedido sem descrição'}`, ref: 'fornecedores' });
+  return out.sort((a, b) => (a.nivel === b.nivel ? 0 : a.nivel === 'danger' ? -1 : 1));
+}

@@ -1,6 +1,6 @@
-# Prumo — Gestão de obras
+# Kronogeste — Gestão de obras
 
-React (Vite + Tailwind) + Express + Supabase. Módulos: Obras, Medições, Financeiro, Fornecedores (pedidos e avaliações), Cronograma (com planejamento reverso) e Dashboard. Login por e-mail/senha, PWA instalável.
+React (Vite + Tailwind) + Express + Supabase. Módulos: Painel da obra (curva S, cronograma, fotos, relatório para impressão), Obras, Medições, Financeiro, Fornecedores (pedidos e avaliações), Cronograma (com planejamento reverso) e Dashboard. Login por e-mail/senha, PWA instalável.
 
 ## Testar agora, sem banco (modo demonstração)
 Sem as variáveis do Supabase o app abre em modo demonstração, com dados de exemplo; qualquer e-mail e senha (6+ caracteres) entram.
@@ -10,11 +10,17 @@ Sem as variáveis do Supabase o app abre em modo demonstração, com dados de ex
     npm start        # http://localhost:3000
 
 ## Ligar ao Supabase
-1. No Supabase, abra **SQL Editor** e rode, nesta ordem, o conteúdo de `supabase/migrations/0001_init.sql` e `0002_signup.sql`.
+1. No Supabase, abra **SQL Editor** e rode, nesta ordem, o conteúdo de `supabase/migrations/0001_init.sql`, `0002_signup.sql`, `0003_fotos.sql` e `0004_permissoes.sql`.
 2. Em **Project Settings > API**, copie a *Project URL* e a chave *anon public*.
 3. Crie `web/.env` (modelo em `web/.env.example`) com `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`, e rode `npm run build`.
 4. Em **Authentication > Providers**, deixe e-mail ativo. Para testar sem confirmar e-mail, desative "Confirm email".
-5. O primeiro usuário que criar conta cria a empresa e vira **admin**. Para convidar alguém para a mesma empresa, crie o usuário em Authentication > Users com `user_metadata` `{"empresa_id": "ID-DA-EMPRESA", "papel": "engenheiro"}` (papéis: admin, engenheiro, financeiro, compras, leitura).
+5. O primeiro usuário que criar conta cria a empresa e vira **admin**. Mantenha **Confirm email** ativo em produção.
+6. Para convidar alguém para a mesma empresa (papéis: admin, engenheiro, financeiro, compras, leitura), rode no SQL Editor, logado como o projeto (service role):
+
+       insert into convites (empresa_id, email, papel)
+       values ('ID-DA-EMPRESA', 'pessoa@empresa.com', 'engenheiro');
+
+   Quando essa pessoa criar a conta com esse e-mail, entra na sua empresa com o papel indicado. O ID da empresa está na tabela `empresas`.
 
 ## Deploy no Render (plano free)
 - Suba os arquivos para o GitHub (sem `node_modules`).

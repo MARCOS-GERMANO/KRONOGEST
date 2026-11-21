@@ -17,7 +17,7 @@ async function entrar() {
 }
 const ir = async (u, nome) => { await u.click(screen.getAllByRole('link', { name: nome })[0]); };
 
-describe('Prumo (modo demonstração)', () => {
+describe('Kronogeste (modo demonstração)', () => {
   test('login valida campos e entra no dashboard com indicadores', async () => {
     const u = userEvent.setup();
     render(<App />);
@@ -28,7 +28,7 @@ describe('Prumo (modo demonstração)', () => {
     cleanup();
     await entrar();
     expect(screen.getByText('Obras ativas')).toBeInTheDocument();
-    expect(screen.getByText('34,15%')).toBeInTheDocument();
+    expect(screen.getAllByText('34,15%').length).toBeGreaterThan(0);
     expect(screen.getByText('Contas vencidas').nextSibling).toHaveTextContent('1');
     expect(screen.getByText('Etapas atrasadas').nextSibling).toHaveTextContent('1');
   });
@@ -42,7 +42,7 @@ describe('Prumo (modo demonstração)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Nome');
     await u.type(screen.getByLabelText(/Nome/), 'Residencial Horizonte');
     await u.selectOptions(screen.getByLabelText(/Status/), 'em_andamento');
-    fireEvent.change(screen.getByLabelText('Início'), { target: { value: '2026-12-10' } });
+    fireEvent.change(screen.getByLabelText('Início', { selector: 'input' }), { target: { value: '2026-12-10' } });
     fireEvent.change(screen.getByLabelText('Previsão de término'), { target: { value: '2026-12-01' } });
     await u.click(screen.getByRole('button', { name: 'Salvar' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('anterior ao início');
@@ -116,5 +116,49 @@ describe('Prumo (modo demonstração)', () => {
     expect(await screen.findByText('Edifício Aurora')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Novo' })).not.toBeInTheDocument();
     expect(screen.queryByText('Editar')).not.toBeInTheDocument();
+  });
+});
+
+describe('Kronogeste (novidades)', () => {
+  test('marca: usa Kronogeste e não Prumo', async () => {
+    await entrar();
+    expect(screen.getAllByText('Kronogeste').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/prumo/i)).not.toBeInTheDocument();
+  });
+
+  test('dashboard: alertas priorizados e gráficos', async () => {
+    await entrar();
+    expect(await screen.findByText('Conta vencida: Concreto usinado')).toBeInTheDocument();
+    expect(screen.getByText(/Etapa atrasada 7 dias: Estrutura/)).toBeInTheDocument();
+    expect(screen.getByText('Medição 1 aguardando aprovação')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Fluxo de caixa mensal' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Despesas por categoria' })).toBeInTheDocument();
+  });
+
+  test('painel da obra: indicadores, curva S, cronograma e envio de foto', async () => {
+    const u = await entrar();
+    await ir(u, 'Painel da obra');
+    expect(await screen.findByRole('img', { name: 'Curva S' })).toBeInTheDocument();
+    expect(screen.getByText('% físico').nextSibling).toHaveTextContent('34,15%');
+    expect(screen.getByText('Estrutura')).toBeInTheDocument();
+    expect(screen.getByText(/7 dias de atraso/)).toBeInTheDocument();
+    await u.type(screen.getByLabelText('Legenda'), 'Concretagem da laje');
+    await u.upload(screen.getByLabelText('Foto'), new File(['x'], 'laje.jpg', { type: 'image/jpeg' }));
+    expect(await screen.findByAltText('Concretagem da laje')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Foto enviada');
+  });
+
+  test('listagens: ordenação e busca', async () => {
+    const u = await entrar();
+    await ir(u, 'Obras');
+    await screen.findByText('Edifício Aurora');
+    const nomes = () => screen.getAllByRole('row').slice(1).map((r) => r.textContent);
+    await u.click(screen.getByRole('columnheader', { name: /Nome/ }));
+    expect(nomes()[0]).toMatch(/Edifício Aurora/);
+    await u.click(screen.getByRole('columnheader', { name: /Nome/ }));
+    expect(nomes()[0]).toMatch(/Galpão/);
+    await u.type(screen.getByLabelText('Buscar'), 'galp');
+    expect(screen.queryByText('Edifício Aurora')).not.toBeInTheDocument();
+    expect(screen.getByText('1 registro(s)')).toBeInTheDocument();
   });
 });

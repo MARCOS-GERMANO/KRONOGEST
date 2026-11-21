@@ -5,7 +5,7 @@ const calc = require('./lib/calc');
 function createApp() {
   const app = express();
   app.use(express.json());
-  app.get('/api/health', (_req, res) => res.json({ ok: true, app: 'Prumo' }));
+  app.get('/api/health', (_req, res) => res.json({ ok: true, app: 'Kronogeste' }));
   app.post('/api/medicoes/calcular', (req, res) => {
     const itens = Array.isArray(req.body.itens) ? req.body.itens : null;
     if (!itens) return res.status(400).json({ erro: 'Informe a lista de itens.' });
@@ -21,5 +21,5 @@ function createApp() {
 module.exports = { createApp };
 if (require.main === module) {
   const port = process.env.PORT || 3000;
-  createApp().listen(port, () => console.log(`Prumo rodando na porta ${port}`));
+  createApp().listen(port, () => console.log(`Kronogeste rodando na porta ${port}`));
 }

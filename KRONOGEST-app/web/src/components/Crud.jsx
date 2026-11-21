@@ -10,6 +10,8 @@ export default function Crud({ table, title, fields, soft = false, orderBy = 'cr
   const [rels, setRels] = useState({});
   const [form, setForm] = useState(null);
   const [err, setErr] = useState('');
+  const [busca, setBusca] = useState('');
+  const [ordem, setOrdem] = useState(null);
 
   const load = useCallback(async () => {
     let q = supabase.from(table).select('*');
@@ -64,13 +66,24 @@ export default function Crud({ table, title, fields, soft = false, orderBy = 'cr
   }
 
   const cols = fields.filter((f) => f.list !== false);
+  const visiveis = rows
+    .filter((r) => !busca || cols.some((f) => String(show(f, r)).toLowerCase().includes(busca.toLowerCase())))
+    .sort((a, b) => {
+      if (!ordem) return 0;
+      const [x, y] = [a[ordem.key] ?? '', b[ordem.key] ?? ''];
+      const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'pt-BR', { numeric: true });
+      return ordem.asc ? c : -c;
+    });
+  const alternar = (key) => setOrdem((o) => (o?.key === key ? { key, asc: !o.asc } : { key, asc: true }));
   const csvCols = [...cols.map((f) => ({ label: f.label, csv: (r) => show(f, r) })), ...extraColumns.map((c) => ({ label: c.label, csv: c.csv || (() => '') }))];
 
   return (
     <section className="mb-8">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h3 className="mr-auto text-lg font-semibold">{title}</h3>
-        <Btn kind="ghost" onClick={() => exportCSV(table, csvCols, rows)}>Exportar CSV</Btn>
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <span className="mr-auto text-sm text-muted">{visiveis.length} registro(s)</span>
+        <input aria-label="Buscar" placeholder="Buscar…" className={`${inputCls} !w-44`} value={busca} onChange={(e) => setBusca(e.target.value)} />
+        <Btn kind="ghost" onClick={() => exportCSV(table, csvCols, visiveis)}>Exportar CSV</Btn>
         <Btn kind="ghost" onClick={() => window.print()}>Imprimir / PDF</Btn>
         {podeEscrever && <Btn onClick={() => setForm({})}>Novo</Btn>}
       </div>
@@ -78,15 +91,19 @@ export default function Crud({ table, title, fields, soft = false, orderBy = 'cr
         <table className="w-full text-left text-sm">
           <thead className="text-muted">
             <tr>
-              {cols.map((f) => <th key={f.key} className="p-3 font-semibold">{f.label}</th>)}
+              {cols.map((f) => (
+                <th key={f.key} className="cursor-pointer select-none p-3 font-semibold hover:text-text" onClick={() => alternar(f.key)} aria-sort={ordem?.key === f.key ? (ordem.asc ? 'ascending' : 'descending') : 'none'}>
+                  {f.label}{ordem?.key === f.key ? (ordem.asc ? ' ▲' : ' ▼') : ''}
+                </th>
+              ))}
               {extraColumns.map((c) => <th key={c.label} className="p-3 font-semibold">{c.label}</th>)}
               <th />
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td className="p-4 text-muted" colSpan={cols.length + extraColumns.length + 1}>Nenhum registro.</td></tr>}
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border">
+            {visiveis.length === 0 && <tr><td className="p-4 text-muted" colSpan={cols.length + extraColumns.length + 1}>Nenhum registro.</td></tr>}
+            {visiveis.map((r) => (
+              <tr key={r.id} className="border-t border-border transition hover:bg-surface-2">
                 {cols.map((f) => <td key={f.key} className="p-3">{show(f, r)}</td>)}
                 {extraColumns.map((c) => <td key={c.label} className="p-3">{c.render(r)}</td>)}
                 <td className="whitespace-nowrap p-3 text-right">

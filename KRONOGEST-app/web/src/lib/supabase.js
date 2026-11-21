@@ -13,6 +13,8 @@ function seed() {
   const o1 = uid(), o2 = uid(), f1 = uid(), f2 = uid(), m1 = uid();
   const base = (r) => ({ id: uid(), empresa_id: E, ativo: true, created_at: new Date().toISOString(), ...r });
   return {
+    empresas: [{ id: E, nome: 'Construtora Demo' }],
+    fotos: [],
     profiles: [{ id: 'demo-user', empresa_id: E, nome: 'Usuário Demo', papel: 'admin' }],
     obras: [
       base({ id: o1, nome: 'Edifício Aurora', cliente: 'Incorporadora Alfa', status: 'em_andamento', data_inicio: off(-90), data_prevista_fim: off(120), orcamento_total: 4500000 }),
@@ -45,6 +47,7 @@ function seed() {
 function createDemoClient() {
   let db = seed();
   let session = null;
+  let blobs = {};
   const listeners = new Set();
   const notify = (ev) => listeners.forEach((fn) => fn(ev, session));
   const from = (table) => {
@@ -71,7 +74,14 @@ function createDemoClient() {
     return b;
   };
   return {
-    __reset() { db = seed(); session = null; },
+    __reset() { db = seed(); session = null; blobs = {}; },
+    storage: {
+      from: () => ({
+        upload: async (path, file) => { blobs[path] = URL.createObjectURL ? URL.createObjectURL(file) : 'blob:demo'; return { data: { path }, error: null }; },
+        createSignedUrls: async (paths) => ({ data: paths.map((p) => ({ path: p, signedUrl: blobs[p] || '' })), error: null }),
+        remove: async (paths) => { paths.forEach((p) => delete blobs[p]); return { data: null, error: null }; },
+      }),
+    },
     from,
     auth: {
       getSession: async () => ({ data: { session } }),

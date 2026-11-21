@@ -6,7 +6,7 @@ test('servidor: health, cálculo de medição, validação e front estático', a
   const srv = createApp().listen(0);
   const base = `http://127.0.0.1:${srv.address().port}`;
   try {
-    assert.deepEqual(await (await fetch(base + '/api/health')).json(), { ok: true, app: 'Prumo' });
+    assert.deepEqual(await (await fetch(base + '/api/health')).json(), { ok: true, app: 'Kronogeste' });
     const r = await fetch(base + '/api/medicoes/calcular', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ itens: [{ quantidade_contratada: 10, quantidade_acumulada: 5, quantidade_medida_periodo: 5, preco_unitario: 20 }] }),
@@ -17,6 +17,6 @@ test('servidor: health, cálculo de medição, validação e front estático', a
     assert.equal((await fetch(base + '/api/medicoes/calcular', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 400);
     const html = await (await fetch(base + '/')).text();
     assert.match(html, /Josefin\+Sans/);
-    assert.match(html, /<title>Prumo<\/title>/);
+    assert.match(html, /<title>Kronogeste<\/title>/);
   } finally { srv.close(); }
 });

@@ -111,25 +111,81 @@ test('schema + RLS no Postgres (PGlite): isolamento por empresa e papel leitura'
   await assert.rejects(() => as(uOut, `insert into obras (empresa_id, nome) values ('${A}','Invasora')`));
 });
 
-test('cadastro (0002): primeiro usuário cria empresa e vira admin; convidado entra na empresa com o papel', async () => {
+test('cadastro (0002): sem convite vira admin da própria empresa; com convite entra com o papel; metadados do usuário são ignorados', async () => {
   const { PGlite } = await import('@electric-sql/pglite');
   const db = new PGlite();
   await db.exec(`
     create schema auth;
-    create table auth.users (id uuid primary key, raw_user_meta_data jsonb default '{}'::jsonb);
+    create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}'::jsonb);
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('app.uid', true), '')::uuid $$;
   `);
   for (const f of ['0001_init.sql', '0002_signup.sql']) await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations', f), 'utf8'));
 
   const admin = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-  await db.exec(`insert into auth.users (id, raw_user_meta_data) values ('${admin}', '{"nome":"Ana","empresa_nome":"Construtora Z"}')`);
+  await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values ('${admin}', 'ana@z.com', '{"nome":"Ana","empresa_nome":"Construtora Z"}')`);
   let p = await db.query(`select p.papel, e.nome as empresa, e.id as empresa_id from profiles p join empresas e on e.id = p.empresa_id where p.id = '${admin}'`);
   assert.equal(p.rows[0].papel, 'admin');
   assert.equal(p.rows[0].empresa, 'Construtora Z');
+  const empZ = p.rows[0].empresa_id;
 
+  // convite feito pelo admin (case-insensitive no e-mail)
   const conv = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
-  await db.exec(`insert into auth.users (id, raw_user_meta_data) values ('${conv}', '{"empresa_id":"${p.rows[0].empresa_id}","papel":"financeiro"}')`);
+  await db.exec(`insert into convites (empresa_id, email, papel) values ('${empZ}', 'Bia@Z.com', 'financeiro')`);
+  await db.exec(`insert into auth.users (id, email) values ('${conv}', 'bia@z.com')`);
   p = await db.query(`select papel, empresa_id from profiles where id = '${conv}'`);
   assert.equal(p.rows[0].papel, 'financeiro');
-  assert.equal((await db.query('select count(*)::int as n from empresas')).rows[0].n, 1);
+  assert.equal(p.rows[0].empresa_id, empZ);
+  assert.equal((await db.query('select count(*)::int as n from convites')).rows[0].n, 0);
+
+  // ataque: usuário tenta se promover via metadados do cadastro; deve ser ignorado
+  const mal = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values ('${mal}', 'mal@x.com', '{"empresa_id":"${empZ}","papel":"admin"}')`);
+  p = await db.query(`select empresa_id from profiles where id = '${mal}'`);
+  assert.notEqual(p.rows[0].empresa_id, empZ);
+  assert.equal((await db.query('select count(*)::int as n from empresas')).rows[0].n, 2);
+});
+
+test('fotos (0003): RLS por empresa na tabela e no storage; bucket privado', async () => {
+  const { PGlite } = await import('@electric-sql/pglite');
+  const db = new PGlite();
+  await db.exec(`
+    create schema auth;
+    create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}'::jsonb);
+    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('app.uid', true), '')::uuid $$;
+    create role authenticated;
+    create schema storage;
+    create table storage.buckets (id text primary key, name text, public boolean);
+    create table storage.objects (id uuid default gen_random_uuid(), bucket_id text, name text);
+    alter table storage.objects enable row level security;
+    create function storage.foldername(n text) returns text[] language sql as
+      $$ select (string_to_array(n, '/'))[1:array_length(string_to_array(n, '/'), 1) - 1] $$;
+  `);
+  for (const f of ['0001_init.sql', '0002_signup.sql', '0003_fotos.sql', '0004_permissoes.sql']) await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations', f), 'utf8'));
+  await db.exec(`grant usage on schema public, auth, storage to authenticated;
+                 grant all on all tables in schema public, storage to authenticated;
+                 grant execute on all functions in schema public, auth, storage to authenticated;`);
+
+  const u1 = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', u2 = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values
+    ('${u1}','a@a.com','{"empresa_nome":"A"}'), ('${u2}','b@b.com','{"empresa_nome":"B"}')`);
+  const emp = async (u) => (await db.query(`select empresa_id from profiles where id = '${u}'`)).rows[0].empresa_id;
+  const [e1, e2] = [await emp(u1), await emp(u2)];
+  const as = async (uid, sql) => {
+    await db.exec(`set role authenticated; select set_config('app.uid','${uid}',false);`);
+    try { return await db.query(sql); } finally { await db.exec('reset role'); }
+  };
+
+  await as(u1, `insert into obras (nome) values ('Obra A')`);
+  const obra = (await as(u1, 'select id from obras')).rows[0].id;
+  await as(u1, `insert into fotos (obra_id, caminho, legenda) values ('${obra}', '${e1}/${obra}/1.jpg', 'laje')`);
+  assert.equal((await as(u1, 'select * from fotos')).rows.length, 1);
+  assert.equal((await as(u2, 'select * from fotos')).rows.length, 0);
+  await assert.rejects(() => as(u2, `insert into fotos (empresa_id, obra_id, caminho) values ('${e1}', '${obra}', 'x')`));
+
+  assert.equal((await db.query(`select public from storage.buckets where id = 'fotos'`)).rows[0].public, false);
+  await as(u1, `insert into storage.objects (bucket_id, name) values ('fotos', '${e1}/${obra}/1.jpg')`);
+  assert.equal((await as(u1, `select * from storage.objects`)).rows.length, 1);
+  assert.equal((await as(u2, `select * from storage.objects`)).rows.length, 0);
+  await assert.rejects(() => as(u2, `insert into storage.objects (bucket_id, name) values ('fotos', '${e1}/${obra}/2.jpg')`));
+  assert.ok(e1 !== e2);
 });

@@ -1,6 +1,6 @@
 {
-  "name": "Prumo — Gestão de obras",
-  "short_name": "Prumo",
+  "name": "Kronogeste — Gestão de obras",
+  "short_name": "Kronogeste",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -20,5 +20,6 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "description": "Prazo, custo e medição da obra no mesmo lugar"
 }

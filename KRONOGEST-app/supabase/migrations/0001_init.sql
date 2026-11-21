@@ -1,4 +1,4 @@
--- Prumo: schema inicial (medições, financeiro, fornecedores, cronograma)
+-- Kronogeste: schema inicial (medições, financeiro, fornecedores, cronograma)
 create table empresas (
   id uuid primary key default gen_random_uuid(),
   nome text not null,
@@ -15,11 +15,11 @@ create table profiles (
 );
 
 create function empresa_atual() returns uuid
-language sql stable security definer as
+language sql stable security definer set search_path = public as
 $$ select empresa_id from profiles where id = auth.uid() $$;
 
 create function papel_atual() returns text
-language sql stable security definer as
+language sql stable security definer set search_path = public as
 $$ select papel from profiles where id = auth.uid() $$;
 
 create table obras (

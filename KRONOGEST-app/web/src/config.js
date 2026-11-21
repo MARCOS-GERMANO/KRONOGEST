@@ -1,1 +1,1 @@
-export const APP_NAME = 'Prumo';
+export const APP_NAME = 'Kronogeste';

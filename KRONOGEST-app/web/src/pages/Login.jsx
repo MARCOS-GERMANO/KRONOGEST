@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DEMO, supabase } from '../lib/supabase';
-import { APP_NAME } from '../config';
+import { Logo } from '../components/Logo';
 import { Btn, inputCls } from '../components/ui';
 
 export default function Login() {
@@ -27,8 +27,8 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <form noValidate onSubmit={enviar} className="w-full max-w-sm rounded-xl border border-border bg-surface p-6">
-        <h1 className="text-center text-3xl font-bold uppercase tracking-widest text-silver">{APP_NAME}</h1>
-        <p className="mb-6 text-center text-muted">Gestão de obras</p>
+        <h1 className="mb-1 flex justify-center text-2xl"><Logo size={44} /></h1>
+        <p className="mb-6 text-center text-sm text-muted">Prazo, custo e medição da obra no mesmo lugar</p>
         {DEMO && <p className="mb-4 rounded bg-border p-2 text-center text-xs">Modo demonstração: qualquer e-mail e senha (6+ caracteres) entram.</p>}
         {modo === 'criar' && <>
           <label htmlFor="lg-nome" className="mb-1 block text-sm text-muted">Seu nome</label>

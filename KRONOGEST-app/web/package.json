@@ -1,4 +1,4 @@
-{ "name": "prumo-web", "private": true, "version": "0.2.0",
+{ "name": "kronogeste-web", "private": true, "version": "0.2.0",
   "scripts": { "build": "vite build", "test": "vitest run" },
   "dependencies": { "@supabase/supabase-js": "^2.45.0", "react": "^18.3.1", "react-dom": "^18.3.1" },
   "devDependencies": { "@testing-library/jest-dom": "^6.4.6", "@testing-library/react": "^16.0.0", "@testing-library/user-event": "^14.5.2",
